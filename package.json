@@ -1,0 +1,13 @@
+{
+  "name": "youtube-downloader",
+  "version": "1.0.0",
+  "description": "Node.js program to download a YouTube playlist with progress tracking",
+  "main": "index.js",
+  "dependencies": {
+    "fs": "0.0.1-security",
+    "progress": "^2.0.3",
+    "ytpl": "^2.3.0",
+    "ytdl-core": "^4.10.1"
+  }
+}
+

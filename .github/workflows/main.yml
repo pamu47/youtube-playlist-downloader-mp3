@@ -51,4 +51,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: your-docker-username/your-docker-repo:latest
+          tags: pamu47/youtube-playlist-downloader-mp3:latest

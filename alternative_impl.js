@@ -1,15 +1,12 @@
-const fs = require('fs');
-const ytdl = require('ytdl-core');
-const ProgressBar = require('progress');
-const ytpl = require('ytpl');
+const fs = require("fs");
+const ytdl = require("ytdl-core");
+const ytpl = require("ytpl");
+const { SingleBar } = require("cli-progress");
+const readline = require("readline");
 
-const playlistUrl = 'https://www.youtube.com/playlist?list=PLdudQuWKVfCg5tt2M6rwrAkdMIeDrGtzc';
-const outputDirectory = '/app/videos';
-
-// Set up progress bar
-let progressBar;
-let totalVideos = 0;
-let downloadedVideos = 0;
+const playlistUrl =
+  "https://www.youtube.com/playlist?list=PLdudQuWKVfCj8fsvKTmW95A0eD75qH32x";
+const outputDirectory = "/app/videos";
 
 async function downloadPlaylist() {
   try {
@@ -17,15 +14,52 @@ async function downloadPlaylist() {
     const playlist = await ytpl(playlistUrl);
     const playlistTitle = playlist.title;
     const playlistVideos = playlist.items;
+    let audioBitrate = 128; // Desired audio bitrate in Kbps
+    const audioFormatExtension = "mp3"; // Desired audio format extension
 
     // Create the output directory
     if (!fs.existsSync(outputDirectory)) {
       fs.mkdirSync(outputDirectory, { recursive: true });
     }
 
-    totalVideos = playlistVideos.length;
+    const totalVideos = playlistVideos.length;
+    let downloadedVideos = 0;
+
+    // Prompt user for audioBitrate
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    const answer = await new Promise((resolve) => {
+      rl.question('Enter the desired audio bitrate (in Kbps): ', (input) => {
+        resolve(input);
+      });
+    });
+
+    rl.close();
+
+    // Check if user provided audioBitrate, otherwise use the default value
+    if (answer && !isNaN(answer)) {
+      audioBitrate = parseInt(answer);
+    }
+
+    // Initialize the progress bar
+    const progressBar = new SingleBar({
+      format: "[:bar] :percent :etas",
+      barCompleteChar: "\u2588",
+      barIncompleteChar: "\u2591",
+      hideCursor: true,
+      stopOnComplete: true,
+      clearOnComplete: false,
+      stream: process.stdout,
+      barsize: 20,
+      etaBuffer: 100,
+    });
 
     // Start downloading each video in the playlist
+    progressBar.start(totalVideos, 0);
+
     for (const video of playlistVideos) {
       const videoTitle = video.title;
       const videoId = video.id;
@@ -34,50 +68,62 @@ async function downloadPlaylist() {
       const audioPath = `${outputDirectory}/${videoTitle}.mp3`;
 
       const videoInfo = await ytdl.getInfo(videoUrl);
-      const audioFormat = ytdl.filterFormats(videoInfo.formats, 'audioonly')[0];
+      const audioFormats = ytdl.filterFormats(videoInfo.formats, "audioonly");
+      const audioFormat = audioFormats.find(
+        (format) =>
+          format.audioBitrate === audioBitrate &&
+          format.container === audioFormatExtension
+      );
 
       // Download the audio
       await new Promise((resolve, reject) => {
         const downloadStream = ytdl(videoUrl, { format: audioFormat });
         const writeStream = fs.createWriteStream(audioPath);
 
-        // Update progress bar
-        downloadStream.on('progress', (chunkLength, downloadedBytes, totalBytes) => {
-          const progress = downloadedBytes / totalBytes;
+        let downloadedBytes = 0;
+        let totalBytes = 0;
+
+        // Update the progress bar
+        downloadStream.on("progress", (_, downloaded, total) => {
+          downloadedBytes = downloaded;
+          totalBytes = total;
+          const progress = downloaded / total;
           progressBar.update(downloadedVideos + progress);
         });
 
         // Handle download complete
-        downloadStream.on('end', () => {
+        downloadStream.on("end", () => {
           downloadedVideos++;
           progressBar.update(downloadedVideos);
-          progressBar.terminate();
           console.log(`Downloaded ${videoTitle}`);
           resolve();
         });
 
         // Handle errors
-        downloadStream.on('error', (error) => {
+        downloadStream.on("error", (error) => {
           reject(error);
         });
 
         downloadStream.pipe(writeStream);
+
+        // Handle write stream close
+        writeStream.on("close", () => {
+          progressBar.update(downloadedVideos + downloadedBytes / totalBytes);
+        });
+
+        // Handle write stream error
+        writeStream.on("error", (error) => {
+          reject(error);
+        });
       });
     }
 
+    progressBar.stop();
     console.log(`Playlist '${playlistTitle}' downloaded successfully!`);
   } catch (error) {
-    console.error('Error:', error.message);
+    console.error("Error:", error.message);
   }
 }
-
-// Set up progress bar
-progressBar = new ProgressBar('[:bar] :percent :etas', {
-  complete: '=',
-  incomplete: ' ',
-  width: 20,
-  total: totalVideos,
-});
 
 // Start downloading the playlist
 downloadPlaylist();

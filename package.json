@@ -9,7 +9,8 @@
     "progress": "^2.0.3",
     "ytpl": "^2.3.0",
     "ytdl-core": "^4.10.1",
-    "keypress": "^0.2.1"
+    "keypress": "^0.2.1",
+    "express": "^4.17.1"
   }
 }
 
